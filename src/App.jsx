@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { authService, dbService } from './lib/supabase';
 
 // ============= UTILS =============
-// 한국 시간 기준 현재 날짜 가져오기
 const getKoreanDate = () => {
   const now = new Date();
   const koreanTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
@@ -16,7 +16,6 @@ const getCurrentYear = () => getKoreanDate().getFullYear();
 const getCurrentMonth = () => getKoreanDate().getMonth() + 1;
 const getCurrentDay = () => getKoreanDate().getDate();
 
-// 미래 날짜인지 체크
 const isFutureDate = (year, month, day) => {
   const korean = getKoreanDate();
   const currentYear = korean.getFullYear();
@@ -29,65 +28,9 @@ const isFutureDate = (year, month, day) => {
   return false;
 };
 
-// ============= MOCK DATA & AUTH =============
-let mockUser = null;
-let mockEntries = {};
-
-const mockAuth = {
-  signIn: async (email, password) => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        mockUser = { email };
-        resolve({ user: mockUser });
-      }, 500);
-    });
-  },
-  signUp: async (email, password) => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        mockUser = { email };
-        resolve({ user: mockUser });
-      }, 500);
-    });
-  },
-  signOut: async () => {
-    mockUser = null;
-    mockEntries = {};
-  },
-  getUser: () => mockUser
-};
-
-const mockDb = {
-  getEntries: async () => {
-    return mockEntries;
-  },
-  saveEntry: async (date, happy, sad) => {
-    // 둘 다 비어있으면 삭제
-    const happyTrimmed = happy.trim();
-    const sadTrimmed = sad.trim();
-    
-    if (!happyTrimmed && !sadTrimmed) {
-      delete mockEntries[date];
-    } else {
-      mockEntries[date] = { happy, sad };
-    }
-  },
-  deleteEntry: async (date, type) => {
-    if (mockEntries[date]) {
-      if (type === 'happy') {
-        mockEntries[date].happy = '';
-      } else {
-        mockEntries[date].sad = '';
-      }
-      // 둘 다 비어있으면 날짜 자체를 삭제
-      if (!mockEntries[date].happy.trim() && !mockEntries[date].sad.trim()) {
-        delete mockEntries[date];
-      }
-    }
-  }
-};
-
 // ============= MAIN APP =============
+let currentEntries = {};
+
 export default function App() {
   const [screen, setScreen] = useState('landing');
   const [user, setUser] = useState(null);
@@ -98,57 +41,123 @@ export default function App() {
   const [showModal, setShowModal] = useState(null);
 
   useEffect(() => {
-    const currentUser = mockAuth.getUser();
-    if (currentUser) {
-      setUser(currentUser);
-      loadEntries();
-      if (Object.keys(mockEntries).length > 0) {
-        setScreen('month');
-      } else {
-        setScreen('year');
+    const checkUser = async () => {
+      try {
+        const user = await authService.getCurrentUser();
+        if (user) {
+          setUser(user);
+          const data = await dbService.getEntries(user.id);
+          currentEntries = data;
+          setEntries(data);
+          if (Object.keys(data).length > 0) {
+            setScreen('month');
+          } else {
+            setScreen('year');
+          }
+        }
+      } catch (error) {
+        console.error('Error checking user:', error);
       }
-    }
+    };
+
+    checkUser();
+
+    const { data: { subscription } } = authService.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        setUser(session.user);
+        const data = await dbService.getEntries(session.user.id);
+        currentEntries = data;
+        setEntries(data);
+        if (Object.keys(data).length > 0) {
+          setScreen('month');
+        } else {
+          setScreen('year');
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setEntries({});
+        currentEntries = {};
+        setScreen('landing');
+      }
+    });
+
+    return () => {
+      subscription?.unsubscribe();
+    };
   }, []);
 
   const loadEntries = async () => {
-    const data = await mockDb.getEntries();
-    setEntries(data);
+    if (!user) return;
+    try {
+      const data = await dbService.getEntries(user.id);
+      currentEntries = data;
+      setEntries(data);
+    } catch (error) {
+      console.error('Error loading entries:', error);
+    }
   };
 
   const handleLogin = async (email, password) => {
-    const { user } = await mockAuth.signIn(email, password);
-    setUser(user);
-    await loadEntries();
-    if (Object.keys(mockEntries).length > 0) {
-      setScreen('month');
-    } else {
-      setScreen('year');
+    try {
+      await authService.signInWithEmail(email, password);
+      setShowModal(null);
+    } catch (error) {
+      alert('로그인 실패: ' + error.message);
     }
-    setShowModal(null);
   };
 
   const handleSignUp = async (email, password) => {
-    const { user } = await mockAuth.signUp(email, password);
-    setUser(user);
-    setScreen('year');
-    setShowModal(null);
+    try {
+      await authService.signUpWithEmail(email, password);
+      alert('회원가입이 완료되었습니다! 이메일을 확인해주세요.');
+      setShowModal(null);
+    } catch (error) {
+      alert('회원가입 실패: ' + error.message);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      await authService.signInWithGoogle();
+    } catch (error) {
+      alert('구글 로그인 실패: ' + error.message);
+    }
+  };
+
+  const handleAppleLogin = async () => {
+    try {
+      await authService.signInWithApple();
+    } catch (error) {
+      alert('애플 로그인 실패: ' + error.message);
+    }
   };
 
   const handleLogout = async () => {
-    await mockAuth.signOut();
-    setUser(null);
-    setEntries({});
-    setScreen('landing');
+    try {
+      await authService.signOut();
+    } catch (error) {
+      alert('로그아웃 실패: ' + error.message);
+    }
   };
 
   const saveEntry = async (date, happy, sad) => {
-    await mockDb.saveEntry(date, happy, sad);
-    await loadEntries();
+    if (!user) return;
+    try {
+      await dbService.saveEntry(user.id, date, happy, sad);
+      await loadEntries();
+    } catch (error) {
+      console.error('Error saving entry:', error);
+    }
   };
 
   const deleteEntry = async (date, type) => {
-    await mockDb.deleteEntry(date, type);
-    await loadEntries();
+    if (!user) return;
+    try {
+      await dbService.deleteEntry(user.id, date, type);
+      await loadEntries();
+    } catch (error) {
+      console.error('Error deleting entry:', error);
+    }
   };
 
   const getDateKey = (y, m, d) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -204,6 +213,8 @@ export default function App() {
             type={showModal}
             onClose={() => setShowModal(null)}
             onSubmit={showModal === 'login' ? handleLogin : handleSignUp}
+            onGoogleLogin={handleGoogleLogin}
+            onAppleLogin={handleAppleLogin}
           />
         )}
       </div>
@@ -280,7 +291,7 @@ export default function App() {
 }
 
 // ============= AUTH MODAL =============
-function AuthModal({ type, onClose, onSubmit }) {
+function AuthModal({ type, onClose, onSubmit, onGoogleLogin, onAppleLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -318,18 +329,52 @@ function AuthModal({ type, onClose, onSubmit }) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleSubmit()}
-            className="w-full p-3 mb-6 bg-gray-300 text-xl font-anton lowercase"
+            className="w-full p-3 mb-4 bg-gray-300 text-xl font-anton lowercase"
           />
           <button
             onClick={handleSubmit}
-            className="w-full py-3 bg-black text-white text-2xl hover:bg-gray-800 font-anton lowercase"
+            className="w-full py-3 bg-black text-white text-2xl hover:bg-gray-800 font-anton lowercase mb-6"
           >
             ok
           </button>
+
+          {/* 구분선 */}
+          <div className="flex items-center mb-6">
+            <div className="flex-1 border-t border-gray-300"></div>
+            <span className="px-4 text-gray-500 text-sm">OR</span>
+            <div className="flex-1 border-t border-gray-300"></div>
+          </div>
+
+          {/* 소셜 로그인 버튼 */}
+          <button
+            onClick={onGoogleLogin}
+            className="w-full py-3 mb-3 bg-white border-2 border-gray-300 text-lg hover:bg-gray-50 font-anton lowercase flex items-center justify-center gap-2"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            google
+          </button>
+
+          {/* 애플 로그인 - Apple Developer 계정 필요 (연간 $99)
+              설정 방법: https://supabase.com/docs/guides/auth/social-login/auth-apple
+              설정 완료 후 주석 해제하세요
+          */}
+          {/*
+          <button
+            onClick={onAppleLogin}
+            className="w-full py-3 bg-black text-white text-lg hover:bg-gray-800 font-anton lowercase flex items-center justify-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+            </svg>
+            apple
+          </button>
+          */}
         </div>
-        {type === 'login' && (
-          <p className="text-center mt-4 underline cursor-pointer" style={{ display: 'none' }}>비밀번호 찾기</p>
-        )}
       </div>
     </div>
   );
@@ -381,7 +426,6 @@ function YearScreen({ selectedYear, onYearSelect, onLogout, hasDataForYear }) {
           <div className="text-4xl mt-4">▼</div>
         </div>
 
-        {/* Help Button */}
         <button
           onClick={() => setShowHelp(true)}
           className="fixed left-4 bottom-4 md:left-8 md:bottom-8 w-12 h-12 md:w-14 md:h-14 rounded-full bg-black text-white text-2xl md:text-3xl flex items-center justify-center hover:bg-gray-800 transition-colors"
@@ -390,14 +434,13 @@ function YearScreen({ selectedYear, onYearSelect, onLogout, hasDataForYear }) {
           ?
         </button>
 
-        {/* Help Modal */}
         {showHelp && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setShowHelp(false)}>
             <div className="bg-white border-2 border-black p-8 md:p-12 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
               <h3 className="text-3xl md:text-4xl mb-6 text-center font-anton lowercase"
                 style={{ 
                   WebkitTextStroke: '5px black',
-                  color: '#ffffffff',
+                  color: '#ffffff',
                   paintOrder: 'stroke fill'
                 }}
               >
@@ -454,11 +497,9 @@ function MonthScreen({ year, onBack, onMonthSelect, onYearChange, hasDataForMont
   const canGoPrev = year > 2020;
   const canGoNext = year < currentYear;
 
-  // 현재 년도면 현재 월까지만 표시
   const maxMonth = year === currentYear ? currentMonth : 12;
   const months = Array.from({ length: maxMonth }, (_, i) => i + 1);
 
-  // 각 월마다 다른 회전 각도
   const rotations = [-8, 5, -3, 7, -5, 4, -6, 3, -4, 6, -7, 5];
 
   return (
@@ -521,22 +562,18 @@ function DayScreen({ year, month, onBack, onDaySelect, onYearMonthChange, onMont
   const currentMonth = getCurrentMonth();
   const currentDay = getCurrentDay();
   
-  // 2020년 1월보다 이전인지 체크
   const isBeforeStart = year === 2020 && month === 1;
-  // 현재 월인지 체크
   const isCurrentMonth = year === currentYear && month === currentMonth;
   
   const canGoPrev = !isBeforeStart;
   const canGoNext = !isCurrentMonth;
 
-  // 현재 년월이면 오늘까지만 표시
   const maxDay = isCurrentMonth ? currentDay : daysInMonth;
 
   const handlePrev = () => {
     if (month > 1) {
       onMonthChange(month - 1);
     } else if (year > 2020) {
-      // 1월에서 이전 버튼 -> 전년도 12월로
       onYearMonthChange(year - 1, 12);
     }
   };
@@ -545,7 +582,6 @@ function DayScreen({ year, month, onBack, onDaySelect, onYearMonthChange, onMont
     if (month < 12) {
       onMonthChange(month + 1);
     } else if (year < currentYear) {
-      // 12월에서 다음 버튼 -> 다음년도 1월로
       onYearMonthChange(year + 1, 1);
     }
   };
@@ -625,9 +661,7 @@ function DetailScreen({ year, month, day, onBack, onDayChange, onYearMonthDayCha
   const currentMonth = getCurrentMonth();
   const currentDay = getCurrentDay();
   
-  // 2020년 1월 1일보다 이전인지 체크
   const isBeforeStart = year === 2020 && month === 1 && day === 1;
-  // 현재 날짜인지 체크
   const isToday = year === currentYear && month === currentMonth && day === currentDay;
   
   const canGoPrev = !isBeforeStart;
@@ -635,27 +669,21 @@ function DetailScreen({ year, month, day, onBack, onDayChange, onYearMonthDayCha
 
   const handlePrev = () => {
     if (day > 1) {
-      // 같은 월 내에서 이동
       onDayChange(day - 1);
     } else if (month > 1) {
-      // 이전 달의 마지막 날로
       const prevMonthDays = getDaysInMonth(year, month - 1);
       onYearMonthDayChange(year, month - 1, prevMonthDays);
     } else if (year > 2020) {
-      // 전년도 12월 31일로
       onYearMonthDayChange(year - 1, 12, 31);
     }
   };
 
   const handleNext = () => {
     if (day < daysInMonth) {
-      // 같은 월 내에서 이동
       onDayChange(day + 1);
     } else if (month < 12) {
-      // 다음 달 1일로
       onYearMonthDayChange(year, month + 1, 1);
     } else if (year < currentYear) {
-      // 다음년도 1월 1일로
       onYearMonthDayChange(year + 1, 1, 1);
     }
   };
@@ -672,7 +700,6 @@ function DetailScreen({ year, month, day, onBack, onDayChange, onYearMonthDayCha
     await deleteEntry(dateKey, type);
     setShowDeleteMenu(null);
     
-    // 즉시 UI 업데이트
     if (type === 'happy') {
       setHappyText('');
     } else {
