@@ -5,8 +5,8 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 // Supabase 클라이언트 생성 (설정이 없으면 null)
 export const supabase = (supabaseUrl && supabaseAnonKey && 
-  supabaseUrl !== 'your_supabase_project_url' && 
-  supabaseAnonKey !== 'your_supabase_anon_key')
+  supabaseUrl !== 'https://toovropwifnokpizcjtq.supabase.co' && 
+  supabaseAnonKey !== 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRvb3Zyb3B3aWZub2twaXpjanRxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk4ODc3MTUsImV4cCI6MjA3NTQ2MzcxNX0.7l7BCnXCTNL0tUsHQ3nh_bpMwlqSaPrJi-XD-Z3KvCk')
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null
 
