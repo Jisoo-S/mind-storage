@@ -177,7 +177,7 @@ export default function App() {
         <h1 
           className="text-6xl md:text-8xl mb-12 md:mb-24 font-anton lowercase"
           style={{ 
-            WebkitTextStroke: '4px black',
+            WebkitTextStroke: '7px black',
             color: '#e5e5e5',
             paintOrder: 'stroke fill'
           }}
@@ -247,6 +247,10 @@ export default function App() {
         setSelectedDay(day);
         setScreen('detail');
       }}
+      onYearMonthChange={(newYear, newMonth) => {
+        setSelectedYear(newYear);
+        setSelectedMonth(newMonth);
+      }}
       onMonthChange={(newMonth) => setSelectedMonth(newMonth)}
       getDateStatus={getDateStatus}
     />;
@@ -260,6 +264,11 @@ export default function App() {
       day={selectedDay}
       onBack={() => setScreen('day')}
       onDayChange={(newDay) => setSelectedDay(newDay)}
+      onYearMonthDayChange={(newYear, newMonth, newDay) => {
+        setSelectedYear(newYear);
+        setSelectedMonth(newMonth);
+        setSelectedDay(newDay);
+      }}
       entries={entries}
       saveEntry={saveEntry}
       deleteEntry={deleteEntry}
@@ -287,7 +296,7 @@ function AuthModal({ type, onClose, onSubmit }) {
         <h2 
           className="text-4xl md:text-5xl mb-6 text-center font-anton lowercase"
           style={{ 
-            WebkitTextStroke: '3px black',
+            WebkitTextStroke: '5px black',
             color: '#e5e5e5',
             paintOrder: 'stroke fill'
           }}
@@ -319,7 +328,7 @@ function AuthModal({ type, onClose, onSubmit }) {
           </button>
         </div>
         {type === 'login' && (
-          <p className="text-center mt-4 underline cursor-pointer">비밀번호 찾기</p>
+          <p className="text-center mt-4 underline cursor-pointer" style={{ display: 'none' }}>비밀번호 찾기</p>
         )}
       </div>
     </div>
@@ -329,16 +338,17 @@ function AuthModal({ type, onClose, onSubmit }) {
 // ============= YEAR SCREEN =============
 function YearScreen({ selectedYear, onYearSelect, onLogout, hasDataForYear }) {
   const currentYear = getCurrentYear();
-  const years = Array.from({ length: currentYear - 2020 + 1 }, (_, i) => 2020 + i);
+  const years = Array.from({ length: currentYear - 2020 + 1 }, (_, i) => 2020 + i).reverse();
+  const [showHelp, setShowHelp] = useState(false);
 
   return (
     <div className="min-h-screen bg-white flex flex-col items-center p-4 md:p-8">
-      <div className="w-full max-w-2xl">
-        <div className="flex justify-between items-start mb-8 md:mb-12">
+      <div className="w-full">
+        <div className="flex justify-between items-start mb-12 md:mb-12 px-4 md:px-8 mt-8">
           <h1 
             className="text-4xl md:text-6xl font-anton lowercase"
             style={{ 
-              WebkitTextStroke: '4px black',
+              WebkitTextStroke: '5px black',
               color: '#e5e5e5',
               paintOrder: 'stroke fill'
             }}
@@ -353,9 +363,9 @@ function YearScreen({ selectedYear, onYearSelect, onLogout, hasDataForYear }) {
           </button>
         </div>
 
-        <div className="flex flex-col items-center mt-32 md:mt-40">
+        <div className="flex flex-col items-center mt-40 md:mt-5">
           <div className="text-4xl mb-4">▲</div>
-          <div className="space-y-4 h-64 overflow-y-auto flex flex-col items-center">
+          <div className="space-y-4 h-64 md:h-96 overflow-y-auto flex flex-col items-center">
             {years.map((year) => (
               <button
                 key={year}
@@ -370,6 +380,68 @@ function YearScreen({ selectedYear, onYearSelect, onLogout, hasDataForYear }) {
           </div>
           <div className="text-4xl mt-4">▼</div>
         </div>
+
+        {/* Help Button */}
+        <button
+          onClick={() => setShowHelp(true)}
+          className="fixed left-4 bottom-4 md:left-8 md:bottom-8 w-12 h-12 md:w-14 md:h-14 rounded-full bg-black text-white text-2xl md:text-3xl flex items-center justify-center hover:bg-gray-800 transition-colors"
+          style={{ fontFamily: 'Anton, sans-serif' }}
+        >
+          ?
+        </button>
+
+        {/* Help Modal */}
+        {showHelp && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setShowHelp(false)}>
+            <div className="bg-white border-2 border-black p-8 md:p-12 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-3xl md:text-4xl mb-6 text-center font-anton lowercase"
+                style={{ 
+                  WebkitTextStroke: '5px black',
+                  color: '#ffffffff',
+                  paintOrder: 'stroke fill'
+                }}
+              >
+                notice
+              </h3>
+              
+              <div className="space-y-5">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-black rounded flex items-center justify-center text-2xl flex-shrink-0">
+                    😊
+                  </div>
+                  <span className="text-lg">좋은 일만 있었던 날</span>
+                </div>
+                
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-red-600 rounded flex items-center justify-center text-2xl flex-shrink-0">
+                    😢
+                  </div>
+                  <span className="text-lg">속상한 기억도 담은 날</span>
+                </div>
+                
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-gray-300 rounded flex items-center justify-center text-2xl flex-shrink-0">
+                    ✏️
+                  </div>
+                  <span className="text-lg">아직 기록이 없는 날</span>
+                </div>
+
+                <div className="mt-6 pt-6 border-t-2 border-gray-200">
+                  <p className="text-base text-gray-700 leading-relaxed">
+                    기록을 작성하면 해당 날짜의 <span className="font-bold">월, 년도</span>도 함께 <span className="font-bold">검정색</span>으로 바뀝니다.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowHelp(false)}
+                className="mt-8 w-full py-3 bg-black text-white text-xl hover:bg-gray-800 font-anton lowercase"
+              >
+                ok
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -398,7 +470,7 @@ function MonthScreen({ year, onBack, onMonthSelect, onYearChange, hasDataForMont
         back
       </button>
 
-      <div className="flex items-center justify-center gap-4 md:gap-8 mb-12 md:mb-16 mt-12 md:mt-20">
+      <div className="flex items-center justify-center gap-4 md:gap-8 mb-12 md:mb-16 mt-4 md:mt-6">
         <button
           onClick={() => canGoPrev && onYearChange(year - 1)}
           className={`text-4xl md:text-6xl ${canGoPrev ? 'text-black' : 'text-gray-300'}`}
@@ -418,17 +490,20 @@ function MonthScreen({ year, onBack, onMonthSelect, onYearChange, hasDataForMont
         </button>
       </div>
 
-      <div className="grid grid-cols-3 md:grid-cols-4 gap-8 md:gap-12 max-w-4xl mx-auto">
+      <div className="grid grid-cols-3 md:grid-cols-4 gap-y-16 gap-x-4 md:gap-y-20 md:gap-x-12 max-w-4xl mx-auto">
         {months.map((month) => (
           <button
             key={month}
             onClick={() => onMonthSelect(month)}
-            className={`text-5xl md:text-7xl transition-all hover:opacity-70 font-abhaya ${
+            className={`text-6xl md:text-7xl transition-all hover:opacity-70 ${
               hasDataForMonth(year, month) ? 'text-black' : 'text-gray-300'
             }`}
             style={{
+              fontFamily: "'Abhaya Libre', 'Times New Roman', serif",
+              fontWeight: 800,
               transform: `rotate(${rotations[month - 1]}deg)`,
-              transition: 'all 0.2s ease'
+              transition: 'all 0.2s ease',
+              WebkitFontSmoothing: 'antialiased'
             }}
           >
             {month}
@@ -440,60 +515,74 @@ function MonthScreen({ year, onBack, onMonthSelect, onYearChange, hasDataForMont
 }
 
 // ============= DAY SCREEN =============
-function DayScreen({ year, month, onBack, onDaySelect, onMonthChange, getDateStatus }) {
+function DayScreen({ year, month, onBack, onDaySelect, onYearMonthChange, onMonthChange, getDateStatus }) {
   const daysInMonth = getDaysInMonth(year, month);
   const currentYear = getCurrentYear();
   const currentMonth = getCurrentMonth();
   const currentDay = getCurrentDay();
   
-  const canGoPrev = month > 1 || year > 2020;
-  const canGoNext = month < 12 ? (year < currentYear || (year === currentYear && month < currentMonth)) : year < currentYear;
+  // 2020년 1월보다 이전인지 체크
+  const isBeforeStart = year === 2020 && month === 1;
+  // 현재 월인지 체크
+  const isCurrentMonth = year === currentYear && month === currentMonth;
+  
+  const canGoPrev = !isBeforeStart;
+  const canGoNext = !isCurrentMonth;
 
   // 현재 년월이면 오늘까지만 표시
-  const maxDay = (year === currentYear && month === currentMonth) ? currentDay : daysInMonth;
+  const maxDay = isCurrentMonth ? currentDay : daysInMonth;
 
   const handlePrev = () => {
     if (month > 1) {
       onMonthChange(month - 1);
+    } else if (year > 2020) {
+      // 1월에서 이전 버튼 -> 전년도 12월로
+      onYearMonthChange(year - 1, 12);
     }
   };
 
   const handleNext = () => {
-    if (month < 12 && !isFutureDate(year, month + 1, 1)) {
+    if (month < 12) {
       onMonthChange(month + 1);
+    } else if (year < currentYear) {
+      // 12월에서 다음 버튼 -> 다음년도 1월로
+      onYearMonthChange(year + 1, 1);
     }
   };
 
   return (
-    <div className="min-h-screen bg-white p-4 md:p-8">
-      <button
-        onClick={onBack}
-        className="mb-4 px-4 py-2 border-2 border-black text-sm md:text-base font-anton lowercase"
-      >
-        back
-      </button>
+    <div className="h-screen bg-white p-4 md:p-8 flex flex-col overflow-hidden">
+      <div className="flex-shrink-0">
+        <button
+          onClick={onBack}
+          className="mb-4 px-4 py-2 border-2 border-black text-sm md:text-base font-anton lowercase"
+        >
+          back
+        </button>
 
-      <div className="flex items-center justify-center gap-4 md:gap-8 mb-8 md:mb-12">
-        <button
-          onClick={handlePrev}
-          className={`text-4xl md:text-6xl ${canGoPrev ? 'text-black' : 'text-gray-300'}`}
-          disabled={!canGoPrev}
-        >
-          ◀
-        </button>
-        <h2 className="text-5xl md:text-7xl font-anton">
-          {year}.{month}
-        </h2>
-        <button
-          onClick={handleNext}
-          className={`text-4xl md:text-6xl ${canGoNext ? 'text-black' : 'text-gray-300'}`}
-          disabled={!canGoNext}
-        >
-          ▶
-        </button>
+        <div className="flex items-center justify-center gap-4 md:gap-8 mb-8 md:mb-12">
+          <button
+            onClick={handlePrev}
+            className={`text-4xl md:text-6xl ${canGoPrev ? 'text-black' : 'text-gray-300'}`}
+            disabled={!canGoPrev}
+          >
+            ◀
+          </button>
+          <h2 className="text-5xl md:text-7xl font-anton">
+            {year}.{month}
+          </h2>
+          <button
+            onClick={handleNext}
+            className={`text-4xl md:text-6xl ${canGoNext ? 'text-black' : 'text-gray-300'}`}
+            disabled={!canGoNext}
+          >
+            ▶
+          </button>
+        </div>
       </div>
 
-      <div className="max-w-2xl mx-auto space-y-2">
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-2xl mx-auto space-y-2 pb-8">
         {Array.from({ length: maxDay }, (_, i) => i + 1).map((day) => {
           const status = getDateStatus(year, month, day);
           const color = status === 'empty' ? 'text-gray-300' : status === 'sad' ? 'text-red-600' : 'text-black';
@@ -508,13 +597,14 @@ function DayScreen({ year, month, onBack, onDaySelect, onMonthChange, getDateSta
             </button>
           );
         })}
+        </div>
       </div>
     </div>
   );
 }
 
 // ============= DETAIL SCREEN =============
-function DetailScreen({ year, month, day, onBack, onDayChange, entries, saveEntry, deleteEntry, getDateKey }) {
+function DetailScreen({ year, month, day, onBack, onDayChange, onYearMonthDayChange, entries, saveEntry, deleteEntry, getDateKey }) {
   const dateKey = getDateKey(year, month, day);
   const entry = entries[dateKey] || { happy: '', sad: '' };
   
@@ -531,18 +621,42 @@ function DetailScreen({ year, month, day, onBack, onDayChange, entries, saveEntr
   }, [dateKey, entries]);
 
   const daysInMonth = getDaysInMonth(year, month);
-  const canGoPrev = day > 1 || month > 1 || year > 2020;
-  const canGoNext = !isFutureDate(year, month, day + 1) && (day < daysInMonth || month < 12 || year < getCurrentYear());
+  const currentYear = getCurrentYear();
+  const currentMonth = getCurrentMonth();
+  const currentDay = getCurrentDay();
+  
+  // 2020년 1월 1일보다 이전인지 체크
+  const isBeforeStart = year === 2020 && month === 1 && day === 1;
+  // 현재 날짜인지 체크
+  const isToday = year === currentYear && month === currentMonth && day === currentDay;
+  
+  const canGoPrev = !isBeforeStart;
+  const canGoNext = !isToday;
 
   const handlePrev = () => {
     if (day > 1) {
+      // 같은 월 내에서 이동
       onDayChange(day - 1);
+    } else if (month > 1) {
+      // 이전 달의 마지막 날로
+      const prevMonthDays = getDaysInMonth(year, month - 1);
+      onYearMonthDayChange(year, month - 1, prevMonthDays);
+    } else if (year > 2020) {
+      // 전년도 12월 31일로
+      onYearMonthDayChange(year - 1, 12, 31);
     }
   };
 
   const handleNext = () => {
-    if (day < daysInMonth && !isFutureDate(year, month, day + 1)) {
+    if (day < daysInMonth) {
+      // 같은 월 내에서 이동
       onDayChange(day + 1);
+    } else if (month < 12) {
+      // 다음 달 1일로
+      onYearMonthDayChange(year, month + 1, 1);
+    } else if (year < currentYear) {
+      // 다음년도 1월 1일로
+      onYearMonthDayChange(year + 1, 1, 1);
     }
   };
 
