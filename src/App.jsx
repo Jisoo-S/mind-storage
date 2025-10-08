@@ -1,5 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { authService, dbService } from './lib/supabase';
+
+// Custom hook for debounce
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
 
 // ============= UTILS =============
 const getKoreanDate = () => {
@@ -16,68 +34,61 @@ const getCurrentYear = () => getKoreanDate().getFullYear();
 const getCurrentMonth = () => getKoreanDate().getMonth() + 1;
 const getCurrentDay = () => getKoreanDate().getDate();
 
-const isFutureDate = (year, month, day) => {
-  const korean = getKoreanDate();
-  const currentYear = korean.getFullYear();
-  const currentMonth = korean.getMonth() + 1;
-  const currentDay = korean.getDate();
-  
-  if (year > currentYear) return true;
-  if (year === currentYear && month > currentMonth) return true;
-  if (year === currentYear && month === currentMonth && day > currentDay) return true;
-  return false;
+// ============= MAIN APP =============
+const getInitialState = () => {
+  try {
+    const storedState = sessionStorage.getItem('mindStorageState');
+    if (storedState) {
+      return JSON.parse(storedState);
+    }
+  } catch (e) {
+    console.error("Failed to parse stored state", e);
+  }
+  return {
+    screen: 'year',
+    selectedYear: getCurrentYear(),
+    selectedMonth: getCurrentMonth(),
+    selectedDay: getCurrentDay(),
+  };
 };
 
-// ============= MAIN APP =============
-let currentEntries = {};
-
 export default function App() {
-  const [screen, setScreen] = useState('landing');
+  const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState(null);
-  const [selectedYear, setSelectedYear] = useState(getCurrentYear());
-  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
-  const [selectedDay, setSelectedDay] = useState(getCurrentDay());
   const [entries, setEntries] = useState({});
   const [showModal, setShowModal] = useState(null);
 
+  const [appState, setAppState] = useState(getInitialState);
+
+  const setScreen = (screen) => setAppState(prev => ({ ...prev, screen }));
+  const setSelectedYear = (year) => setAppState(prev => ({ ...prev, selectedYear: year }));
+  const setSelectedMonth = (month) => setAppState(prev => ({ ...prev, selectedMonth: month }));
+  const setSelectedDay = (day) => setAppState(prev => ({ ...prev, selectedDay: day }));
+
+  const { screen, selectedYear, selectedMonth, selectedDay } = appState;
+
   useEffect(() => {
-    const checkUser = async () => {
-      try {
-        const user = await authService.getCurrentUser();
-        if (user) {
-          setUser(user);
-          const data = await dbService.getEntries(user.id);
-          currentEntries = data;
-          setEntries(data);
-          if (Object.keys(data).length > 0) {
-            setScreen('month');
-          } else {
-            setScreen('year');
-          }
-        }
-      } catch (error) {
-        console.error('Error checking user:', error);
+    try {
+      if (user) {
+        sessionStorage.setItem('mindStorageState', JSON.stringify(appState));
       }
-    };
+    } catch (e) {
+      console.error("Failed to save state", e);
+    }
+  }, [appState, user]);
 
-    checkUser();
 
-    const { data: { subscription } } = authService.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        setUser(session.user);
-        const data = await dbService.getEntries(session.user.id);
-        currentEntries = data;
-        setEntries(data);
-        if (Object.keys(data).length > 0) {
-          setScreen('month');
-        } else {
-          setScreen('year');
-        }
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-        setEntries({});
-        currentEntries = {};
-        setScreen('landing');
+  useEffect(() => {
+    const { data: { subscription } } = authService.onAuthStateChange((event, session) => {
+      const currentUser = session?.user || null;
+      setUser(currentUser);
+      if (currentUser) {
+        dbService.getEntries(currentUser.id).then(data => {
+          setEntries(data);
+          setIsLoading(false);
+        });
+      } else {
+        setIsLoading(false);
       }
     });
 
@@ -90,7 +101,6 @@ export default function App() {
     if (!user) return;
     try {
       const data = await dbService.getEntries(user.id);
-      currentEntries = data;
       setEntries(data);
     } catch (error) {
       console.error('Error loading entries:', error);
@@ -135,20 +145,26 @@ export default function App() {
   const handleLogout = async () => {
     try {
       await authService.signOut();
+      sessionStorage.removeItem('mindStorageState');
+      setAppState(getInitialState()); // Reset to default
     } catch (error) {
       alert('로그아웃 실패: ' + error.message);
     }
   };
 
-  const saveEntry = async (date, happy, sad) => {
+  const saveEntry = useCallback(async (date, happy, sad) => {
     if (!user) return;
+    const trimmedHappy = happy.trim();
+    const trimmedSad = sad.trim();
+
+    setEntries(prevEntries => ({ ...prevEntries, [date]: { happy: trimmedHappy, sad: trimmedSad } }));
     try {
-      await dbService.saveEntry(user.id, date, happy, sad);
-      await loadEntries();
+      await dbService.saveEntry(user.id, date, trimmedHappy, trimmedSad);
     } catch (error) {
       console.error('Error saving entry:', error);
+      loadEntries();
     }
-  };
+  }, [user]);
 
   const deleteEntry = async (date, type) => {
     if (!user) return;
@@ -164,23 +180,39 @@ export default function App() {
 
   const hasDataForMonth = (year, month) => {
     const prefix = `${year}-${String(month).padStart(2, '0')}`;
-    return Object.keys(entries).some(key => key.startsWith(prefix));
+    return Object.keys(entries).some(key => key.startsWith(prefix) && (entries[key]?.happy?.trim() || entries[key]?.sad?.trim()));
   };
 
   const hasDataForYear = (year) => {
-    return Object.keys(entries).some(key => key.startsWith(`${year}-`));
+    return Object.keys(entries).some(key => key.startsWith(`${year}-`) && (entries[key]?.happy?.trim() || entries[key]?.sad?.trim()));
   };
 
   const getDateStatus = (year, month, day) => {
     const key = getDateKey(year, month, day);
     const entry = entries[key];
-    if (!entry || (!entry.happy.trim() && !entry.sad.trim())) return 'empty';
-    if (entry.sad.trim()) return 'sad';
+    if (!entry || (!entry.happy?.trim() && !entry.sad?.trim())) return 'empty';
+    if (entry.sad?.trim()) return 'sad';
     return 'happy';
   };
 
-  // ============= LANDING SCREEN =============
-  if (screen === 'landing') {
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <h1 
+          className="text-6xl md:text-8xl font-anton lowercase"
+          style={{ 
+            WebkitTextStroke: '7px black',
+            color: '#e5e5e5',
+            paintOrder: 'stroke fill'
+          }}
+        >
+          loading...
+        </h1>
+      </div>
+    );
+  }
+
+  if (!user) {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4">
         <h1 
@@ -221,9 +253,8 @@ export default function App() {
     );
   }
 
-  // ============= YEAR SCREEN =============
-  if (screen === 'year') {
-    return <YearScreen
+  const mainScreens = {
+    year: <YearScreen
       selectedYear={selectedYear}
       onYearSelect={(year) => {
         setSelectedYear(year);
@@ -231,12 +262,8 @@ export default function App() {
       }}
       onLogout={handleLogout}
       hasDataForYear={hasDataForYear}
-    />;
-  }
-
-  // ============= MONTH SCREEN =============
-  if (screen === 'month') {
-    return <MonthScreen
+    />,
+    month: <MonthScreen
       year={selectedYear}
       onBack={() => setScreen('year')}
       onMonthSelect={(month) => {
@@ -245,12 +272,8 @@ export default function App() {
       }}
       onYearChange={setSelectedYear}
       hasDataForMonth={hasDataForMonth}
-    />;
-  }
-
-  // ============= DAY SCREEN =============
-  if (screen === 'day') {
-    return <DayScreen
+    />,
+    day: <DayScreen
       year={selectedYear}
       month={selectedMonth}
       onBack={() => setScreen('month')}
@@ -264,30 +287,25 @@ export default function App() {
       }}
       onMonthChange={(newMonth) => setSelectedMonth(newMonth)}
       getDateStatus={getDateStatus}
-    />;
-  }
-
-  // ============= DETAIL SCREEN =============
-  if (screen === 'detail') {
-    return <DetailScreen
+    />,
+    detail: <DetailScreen
+      key={getDateKey(selectedYear, selectedMonth, selectedDay)}
       year={selectedYear}
       month={selectedMonth}
       day={selectedDay}
       onBack={() => setScreen('day')}
       onDayChange={(newDay) => setSelectedDay(newDay)}
       onYearMonthDayChange={(newYear, newMonth, newDay) => {
-        setSelectedYear(newYear);
-        setSelectedMonth(newMonth);
-        setSelectedDay(newDay);
+        setAppState(prev => ({...prev, selectedYear: newYear, selectedMonth: newMonth, selectedDay: newDay}));
       }}
       entries={entries}
       saveEntry={saveEntry}
       deleteEntry={deleteEntry}
       getDateKey={getDateKey}
-    />;
-  }
+    />
+  };
 
-  return null;
+  return mainScreens[screen] || mainScreens.year;
 }
 
 // ============= AUTH MODAL =============
@@ -358,22 +376,6 @@ function AuthModal({ type, onClose, onSubmit, onGoogleLogin, onAppleLogin }) {
             </svg>
             google
           </button>
-
-          {/* 애플 로그인 - Apple Developer 계정 필요 (연간 $99)
-              설정 방법: https://supabase.com/docs/guides/auth/social-login/auth-apple
-              설정 완료 후 주석 해제하세요
-          */}
-          {/*
-          <button
-            onClick={onAppleLogin}
-            className="w-full py-3 bg-black text-white text-lg hover:bg-gray-800 font-anton lowercase flex items-center justify-center gap-2"
-          >
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
-            </svg>
-            apple
-          </button>
-          */}
         </div>
       </div>
     </div>
@@ -649,12 +651,16 @@ function DetailScreen({ year, month, day, onBack, onDayChange, onYearMonthDayCha
   const [isSadHidden, setIsSadHidden] = useState(true);
   const [showDeleteMenu, setShowDeleteMenu] = useState(null);
 
+  const debouncedHappyText = useDebounce(happyText, 500);
+  const debouncedSadText = useDebounce(sadText, 500);
+
   useEffect(() => {
     const currentEntry = entries[dateKey] || { happy: '', sad: '' };
-    setHappyText(currentEntry.happy || '');
-    setSadText(currentEntry.sad || '');
-    setIsSadHidden(true);
-  }, [dateKey, entries]);
+    if (debouncedHappyText !== currentEntry.happy || debouncedSadText !== currentEntry.sad) {
+      saveEntry(dateKey, debouncedHappyText, debouncedSadText);
+    }
+  }, [debouncedHappyText, debouncedSadText]); // Removed dependencies to prevent re-hiding
+
 
   const daysInMonth = getDaysInMonth(year, month);
   const currentYear = getCurrentYear();
@@ -688,24 +694,14 @@ function DetailScreen({ year, month, day, onBack, onDayChange, onYearMonthDayCha
     }
   };
 
-  const handleSave = () => {
-    saveEntry(dateKey, happyText, sadText);
-  };
-
-  useEffect(() => {
-    handleSave();
-  }, [happyText, sadText]);
-
   const handleDelete = async (type) => {
     await deleteEntry(dateKey, type);
-    setShowDeleteMenu(null);
-    
     if (type === 'happy') {
       setHappyText('');
     } else {
       setSadText('');
-      setIsSadHidden(true);
     }
+    setShowDeleteMenu(null);
   };
 
   return (
