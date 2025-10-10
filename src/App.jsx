@@ -86,8 +86,33 @@ export default function App() {
         dbService.getEntries(currentUser.id).then(data => {
           setEntries(data);
           setIsLoading(false);
-          // 로그인 시 현재 달로 이동
-          setAppState(getInitialState(true));
+          
+          // 데이터가 있는지 확인
+          const hasData = Object.keys(data).some(key => 
+            data[key]?.happy?.trim() || data[key]?.sad?.trim()
+          );
+          
+          // 저장된 상태가 없으면 초기 화면 설정
+          const storedState = sessionStorage.getItem('mindStorageState');
+          if (!storedState) {
+            if (hasData) {
+              // 데이터가 있으면 현재 달 화면으로
+              setAppState({
+                screen: 'month',
+                selectedYear: getCurrentYear(),
+                selectedMonth: getCurrentMonth(),
+                selectedDay: getCurrentDay(),
+              });
+            } else {
+              // 데이터가 없으면 년도 화면으로
+              setAppState({
+                screen: 'year',
+                selectedYear: getCurrentYear(),
+                selectedMonth: getCurrentMonth(),
+                selectedDay: getCurrentDay(),
+              });
+            }
+          }
         });
       } else {
         setIsLoading(false);
@@ -178,10 +203,15 @@ export default function App() {
   const handleLogout = async () => {
     try {
       await authService.signOut();
-      sessionStorage.removeItem('mindStorageState');
-      setAppState(getInitialState()); // Reset to default
     } catch (error) {
-      alert('로그아웃 실패: ' + error.message);
+      // 세션이 없어도 조용히 로그아웃 처리
+      console.log('Logout attempted:', error.message);
+    } finally {
+      // 에러 여부와 관계없이 항상 상태 초기화
+      sessionStorage.removeItem('mindStorageState');
+      setAppState(getInitialState());
+      setUser(null);
+      setEntries({});
     }
   };
 
