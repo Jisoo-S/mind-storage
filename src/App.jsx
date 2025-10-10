@@ -35,7 +35,7 @@ const getCurrentMonth = () => getKoreanDate().getMonth() + 1;
 const getCurrentDay = () => getKoreanDate().getDate();
 
 // ============= MAIN APP =============
-const getInitialState = () => {
+const getInitialState = (isLoggedIn = false) => {
   try {
     const storedState = sessionStorage.getItem('mindStorageState');
     if (storedState) {
@@ -45,7 +45,7 @@ const getInitialState = () => {
     console.error("Failed to parse stored state", e);
   }
   return {
-    screen: 'year',
+    screen: isLoggedIn ? 'month' : 'year',
     selectedYear: getCurrentYear(),
     selectedMonth: getCurrentMonth(),
     selectedDay: getCurrentDay(),
@@ -86,6 +86,8 @@ export default function App() {
         dbService.getEntries(currentUser.id).then(data => {
           setEntries(data);
           setIsLoading(false);
+          // 로그인 시 현재 달로 이동
+          setAppState(getInitialState(true));
         });
       } else {
         setIsLoading(false);
@@ -108,15 +110,46 @@ export default function App() {
   };
 
   const handleLogin = async (email, password) => {
+    // 이메일 형식 검증
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      alert('이메일 형식이 올바르지 않습니다.');
+      return;
+    }
+    
+    // 비밀번호 길이 검증
+    if (password.length < 6) {
+      alert('비밀번호는 6자 이상이어야 합니다.');
+      return;
+    }
+    
     try {
       await authService.signInWithEmail(email, password);
       setShowModal(null);
     } catch (error) {
-      alert('로그인 실패: ' + error.message);
+      // 가입되지 않은 계정이거나 비밀번호 오류
+      if (error.message.includes('Invalid login credentials') || error.message.includes('invalid'))  {
+        alert('가입되지 않은 계정이거나 비밀번호가 일치하지 않습니다.');
+      } else {
+        alert('로그인 실패: ' + error.message);
+      }
     }
   };
 
   const handleSignUp = async (email, password) => {
+    // 이메일 형식 검증
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      alert('이메일 형식이 올바르지 않습니다.');
+      return;
+    }
+    
+    // 비밀번호 길이 검증
+    if (password.length < 6) {
+      alert('비밀번호는 6자 이상이어야 합니다.');
+      return;
+    }
+    
     try {
       await authService.signUpWithEmail(email, password);
       alert('회원가입이 완료되었습니다! 이메일을 확인해주세요.');
@@ -225,7 +258,7 @@ export default function App() {
         >
           mind storage
         </h1>
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 items-center">
           <button
             onClick={() => setShowModal('login')}
             className="px-16 py-4 text-2xl md:text-3xl bg-black text-white hover:bg-gray-800 transition-colors font-anton lowercase"
@@ -234,9 +267,9 @@ export default function App() {
           </button>
           <button
             onClick={() => setShowModal('signup')}
-            className="px-16 py-4 text-2xl md:text-3xl bg-gray-300 text-black hover:bg-gray-400 transition-colors font-anton lowercase"
+            className="px-6 py-2 text-sm md:text-base text-gray-600 hover:text-black transition-colors"
           >
-            sign up
+            회원가입
           </button>
         </div>
 
@@ -321,7 +354,13 @@ function AuthModal({ type, onClose, onSubmit, onGoogleLogin, onAppleLogin }) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={onClose}>
-      <div className="bg-white border-2 border-black p-8 md:p-12 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white border-2 border-black p-8 md:p-12 w-full max-w-md relative" onClick={(e) => e.stopPropagation()}>
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-3xl hover:opacity-70 transition-opacity"
+        >
+          ×
+        </button>
         <h2 
           className="text-4xl md:text-5xl mb-6 text-center font-anton lowercase"
           style={{ 
@@ -353,7 +392,7 @@ function AuthModal({ type, onClose, onSubmit, onGoogleLogin, onAppleLogin }) {
             onClick={handleSubmit}
             className="w-full py-3 bg-black text-white text-2xl hover:bg-gray-800 font-anton lowercase mb-6"
           >
-            ok
+            {type === 'login' ? 'login' : 'sign up'}
           </button>
 
           {/* 구분선 */}
@@ -471,7 +510,17 @@ function YearScreen({ selectedYear, onYearSelect, onLogout, hasDataForYear }) {
                   <span className="text-lg">아직 기록이 없는 날</span>
                 </div>
 
-                <div className="mt-6 pt-6 border-t-2 border-gray-200">
+                <div className="mt-6 pt-6 border-t-2 border-gray-200 space-y-4">
+                  <div className="flex items-start gap-4">
+                    <div className="w-14 h-14 rounded flex items-center justify-center text-2xl flex-shrink-0">
+                      🩹
+                    </div>
+                    <div className="text-sm md:text-base">
+                      <p>입력창의 <span className="font-bold">반창고 버튼</span>을 누르면 속상한 기억을 작성할 수 있는 칸이 생성됩니다.</p>
+                      <p className="mt-1">작성을 마친 후에는 반창고로 속상한 기억을 덮어보세요.</p>
+                    </div>
+                  </div>
+
                   <p className="text-base text-gray-700 leading-relaxed">
                     기록을 작성하면 해당 날짜의 <span className="font-bold">월, 년도</span>도 함께 <span className="font-bold">검정색</span>으로 바뀝니다.
                   </p>
@@ -805,9 +854,9 @@ function DetailScreen({ year, month, day, onBack, onDayChange, onYearMonthDayCha
             />
             <button
               onClick={() => setIsSadHidden(true)}
-              className="mt-2 px-6 py-2 bg-gray-300 hover:bg-gray-400"
+              className="mt-2 px-6 py-2 bg-gray-300 hover:bg-gray-400 font-anton lowercase"
             >
-              가리기
+              hide
             </button>
           </div>
         )}
