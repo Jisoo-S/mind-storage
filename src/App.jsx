@@ -35,7 +35,7 @@ const getCurrentMonth = () => getKoreanDate().getMonth() + 1;
 const getCurrentDay = () => getKoreanDate().getDate();
 
 // ============= MAIN APP =============
-const getInitialState = (isLoggedIn = false) => {
+const getInitialState = () => {
   try {
     const storedState = sessionStorage.getItem('mindStorageState');
     if (storedState) {
@@ -44,8 +44,9 @@ const getInitialState = (isLoggedIn = false) => {
   } catch (e) {
     console.error("Failed to parse stored state", e);
   }
+  // sessionStorage가 없으면 일단 year로 시작 (데이터 로드 후 month로 변경 가능)
   return {
-    screen: isLoggedIn ? 'month' : 'year',
+    screen: 'year',
     selectedYear: getCurrentYear(),
     selectedMonth: getCurrentMonth(),
     selectedDay: getCurrentDay(),
@@ -54,6 +55,7 @@ const getInitialState = (isLoggedIn = false) => {
 
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [user, setUser] = useState(null);
   const [entries, setEntries] = useState({});
   const [showModal, setShowModal] = useState(null);
@@ -85,16 +87,23 @@ export default function App() {
       if (currentUser) {
         dbService.getEntries(currentUser.id).then(data => {
           setEntries(data);
-          setIsLoading(false);
           
           // 데이터가 있는지 확인
           const hasData = Object.keys(data).some(key => 
             data[key]?.happy?.trim() || data[key]?.sad?.trim()
           );
           
-          // 저장된 상태가 없으면 초기 화면 설정
-          const storedState = sessionStorage.getItem('mindStorageState');
-          if (!storedState) {
+          // 저장된 상태 확인
+          const storedStateString = sessionStorage.getItem('mindStorageState');
+          let storedState = null;
+          try {
+            storedState = storedStateString ? JSON.parse(storedStateString) : null;
+          } catch (e) {
+            console.error('Failed to parse stored state', e);
+          }
+          
+          // 저장된 상태가 없거나 screen이 null이면 초기 화면 설정
+          if (!storedState || !storedState.screen) {
             if (hasData) {
               // 데이터가 있으면 현재 달 화면으로
               setAppState({
@@ -113,9 +122,13 @@ export default function App() {
               });
             }
           }
+          
+          setIsLoading(false);
+          setInitialLoadComplete(true);
         });
       } else {
         setIsLoading(false);
+        setInitialLoadComplete(true);
       }
     });
 
@@ -212,6 +225,8 @@ export default function App() {
       setAppState(getInitialState());
       setUser(null);
       setEntries({});
+      setInitialLoadComplete(false);
+      setIsLoading(true);
     }
   };
 
@@ -228,6 +243,8 @@ export default function App() {
       setAppState(getInitialState());
       setUser(null);
       setEntries({});
+      setInitialLoadComplete(false);
+      setIsLoading(true);
     } catch (error) {
       alert('계정 삭제에 실패했습니다: ' + error.message);
     }
@@ -276,7 +293,7 @@ export default function App() {
     return 'happy';
   };
 
-  if (isLoading) {
+  if (isLoading || !initialLoadComplete) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <h1 
