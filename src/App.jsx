@@ -883,7 +883,7 @@ function DetailScreen({ year, month, day, onBack, onDayChange, onYearMonthDayCha
           <textarea
             value={happyText}
             onChange={(e) => setHappyText(e.target.value)}
-            className="w-full h-64 p-4 border-4 border-gray-400 bg-gray-100 resize-none text-lg"
+            className="w-full h-64 p-4 border-4 border-gray-800 bg-gray-100 resize-none text-lg"
             placeholder="행복했던 기억을 적어보세요..."
           />
         </div>
