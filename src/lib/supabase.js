@@ -77,6 +77,23 @@ export const authService = {
     if (!supabase) return { data: { subscription: { unsubscribe: () => {} } } }
     return supabase.auth.onAuthStateChange(callback)
   },
+
+  // 계정 삭제
+  deleteAccount: async (userId) => {
+    if (!supabase) throw new Error('Supabase가 설정되지 않았습니다.')
+    
+    // 먼저 해당 사용자의 모든 엔트리 삭제
+    const { error: entriesError } = await supabase
+      .from('entries')
+      .delete()
+      .eq('user_id', userId)
+    
+    if (entriesError) throw entriesError
+    
+    // Supabase Auth API를 통한 계정 삭제
+    const { error } = await supabase.rpc('delete_user')
+    if (error) throw error
+  },
 }
 
 // 데이터베이스 함수들

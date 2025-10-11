@@ -215,6 +215,24 @@ export default function App() {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    
+    const confirmed = window.confirm('정말 탈퇴하시겠습니까?');
+    if (!confirmed) return;
+    
+    try {
+      await authService.deleteAccount(user.id);
+      alert('계정이 삭제되었습니다.');
+      sessionStorage.removeItem('mindStorageState');
+      setAppState(getInitialState());
+      setUser(null);
+      setEntries({});
+    } catch (error) {
+      alert('계정 삭제에 실패했습니다: ' + error.message);
+    }
+  };
+
   const saveEntry = useCallback(async (date, happy, sad) => {
     if (!user) return;
     const trimmedHappy = happy.trim();
@@ -296,7 +314,7 @@ export default function App() {
             login
           </button>
           <button
-            onClick={() => setShowModal('signup')}
+            onClick={() => setShowModal('sign up')}
             className="px-6 py-2 text-sm md:text-base text-gray-600 hover:text-black transition-colors"
           >
             회원가입
@@ -324,6 +342,7 @@ export default function App() {
         setScreen('month');
       }}
       onLogout={handleLogout}
+      onDeleteAccount={handleDeleteAccount}
       hasDataForYear={hasDataForYear}
     />,
     month: <MonthScreen
@@ -452,7 +471,7 @@ function AuthModal({ type, onClose, onSubmit, onGoogleLogin, onAppleLogin }) {
 }
 
 // ============= YEAR SCREEN =============
-function YearScreen({ selectedYear, onYearSelect, onLogout, hasDataForYear }) {
+function YearScreen({ selectedYear, onYearSelect, onLogout, onDeleteAccount, hasDataForYear }) {
   const currentYear = getCurrentYear();
   const years = Array.from({ length: currentYear - 2020 + 1 }, (_, i) => 2020 + i).reverse();
   const [showHelp, setShowHelp] = useState(false);
@@ -562,6 +581,16 @@ function YearScreen({ selectedYear, onYearSelect, onLogout, hasDataForYear }) {
                 className="mt-8 w-full py-3 bg-black text-white text-xl hover:bg-gray-800 font-anton lowercase"
               >
                 ok
+              </button>
+              
+              <button
+                onClick={() => {
+                  setShowHelp(false);
+                  onDeleteAccount();
+                }}
+                className="mt-4 py-2 text-sm text-gray-500 hover:text-red-600 transition-colors"
+              >
+                탈퇴하기
               </button>
             </div>
           </div>
@@ -837,7 +866,7 @@ function DetailScreen({ year, month, day, onBack, onDayChange, onYearMonthDayCha
           <textarea
             value={happyText}
             onChange={(e) => setHappyText(e.target.value)}
-            className="w-full h-64 p-4 border-2 border-gray-400 bg-gray-100 resize-none text-lg"
+            className="w-full h-64 p-4 border-4 border-gray-400 bg-gray-100 resize-none text-lg"
             placeholder="행복했던 기억을 적어보세요..."
           />
         </div>
@@ -879,12 +908,12 @@ function DetailScreen({ year, month, day, onBack, onDayChange, onYearMonthDayCha
             <textarea
               value={sadText}
               onChange={(e) => setSadText(e.target.value)}
-              className="w-full h-64 p-4 border-2 border-red-400 bg-red-50 resize-none text-lg"
+              className="w-full h-64 p-4 border-4 border-red-400 bg-red-50 resize-none text-lg"
               placeholder="속상했던 기억을 적어보세요..."
             />
             <button
               onClick={() => setIsSadHidden(true)}
-              className="mt-2 px-6 py-2 bg-gray-300 hover:bg-gray-400 font-anton lowercase"
+              className="mt-2 px-6 py-2 bg-red-200 hover:bg-gray-400 font-anton lowercase"
             >
               hide
             </button>
