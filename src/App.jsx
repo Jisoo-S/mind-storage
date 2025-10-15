@@ -93,21 +93,12 @@ export default function App() {
             data[key]?.happy?.trim() || data[key]?.sad?.trim()
           );
           
-          // 저장된 상태 확인
-          const storedStateString = sessionStorage.getItem('mindStorageState');
-          let storedState = null;
-          try {
-            storedState = storedStateString ? JSON.parse(storedStateString) : null;
-          } catch (e) {
-            console.error('Failed to parse stored state', e);
-          }
-          
-          // 저장된 상태가 없거나 screen이 null이면 초기 화면 설정
-          if (!storedState || !storedState.screen) {
+          // 로그인 이벤트이거나 초기 로드일 때는 항상 데이터 유무에 따라 화면 설정
+          if (event === 'SIGNED_IN' || !initialLoadComplete) {
             if (hasData) {
-              // 데이터가 있으면 현재 달 화면으로
+              // 데이터가 있으면 현재 날짜 화면으로
               setAppState({
-                screen: 'month',
+                screen: 'day',
                 selectedYear: getCurrentYear(),
                 selectedMonth: getCurrentMonth(),
                 selectedDay: getCurrentDay(),
@@ -135,7 +126,7 @@ export default function App() {
     return () => {
       subscription?.unsubscribe();
     };
-  }, []);
+  }, [initialLoadComplete]);
 
   const loadEntries = async () => {
     if (!user) return;
@@ -190,7 +181,7 @@ export default function App() {
     
     try {
       await authService.signUpWithEmail(email, password);
-      alert('회원가입이 완료되었습니다! 이메일을 확인해주세요.');
+      alert('회원가입이 완료되었습니다!');
       setShowModal(null);
     } catch (error) {
       alert('회원가입 실패: ' + error.message);
