@@ -207,17 +207,19 @@ export default function App() {
   const handleLogout = async () => {
     try {
       await authService.signOut();
-    } catch (error) {
-      // 세션이 없어도 조용히 로그아웃 처리
-      console.log('Logout attempted:', error.message);
-    } finally {
-      // 에러 여부와 관계없이 항상 상태 초기화
+      // 로그아웃 성공 후 상태 초기화
       sessionStorage.removeItem('mindStorageState');
       setAppState(getInitialState());
       setUser(null);
       setEntries({});
-      setInitialLoadComplete(false);
-      setIsLoading(true);
+      // 페이지 새로고침으로 완전히 초기화
+      window.location.reload();
+    } catch (error) {
+      console.error('Logout error:', error);
+      // 에러가 발생해도 강제로 로그아웃 처리
+      sessionStorage.removeItem('mindStorageState');
+      localStorage.clear(); // 모든 로귱 저장소 삭제
+      window.location.reload();
     }
   };
 
