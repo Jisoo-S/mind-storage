@@ -823,35 +823,38 @@ function DetailScreen({ year, month, day, onBack, onDayChange, onYearMonthDayCha
   };
 
   return (
-    <div className="min-h-screen bg-white p-4 md:p-8">
-      <button
-        onClick={onBack}
-        className="mb-4 px-4 py-2 border-2 border-black text-sm md:text-base font-anton lowercase"
-      >
-        back
-      </button>
+    <div className="h-screen bg-white p-4 md:p-8 flex flex-col overflow-hidden">
+      <div className="flex-shrink-0">
+        <button
+          onClick={onBack}
+          className="mb-4 px-4 py-2 border-2 border-black text-sm md:text-base font-anton lowercase"
+        >
+          back
+        </button>
 
-      <div className="flex items-center justify-center gap-4 md:gap-8 mb-8 md:mb-12">
-        <button
-          onClick={handlePrev}
-          className={`text-4xl md:text-6xl ${canGoPrev ? 'text-black' : 'text-gray-300'}`}
-          disabled={!canGoPrev}
-        >
-          ◀
-        </button>
-        <h2 className="text-5xl md:text-7xl font-anton">
-          {month}/{day}
-        </h2>
-        <button
-          onClick={handleNext}
-          className={`text-4xl md:text-6xl ${canGoNext ? 'text-black' : 'text-gray-300'}`}
-          disabled={!canGoNext}
-        >
-          ▶
-        </button>
+        <div className="flex items-center justify-center gap-4 md:gap-8 mb-8 md:mb-12">
+          <button
+            onClick={handlePrev}
+            className={`text-4xl md:text-6xl ${canGoPrev ? 'text-black' : 'text-gray-300'}`}
+            disabled={!canGoPrev}
+          >
+            ◀
+          </button>
+          <h2 className="text-5xl md:text-7xl font-anton">
+            {month}/{day}
+          </h2>
+          <button
+            onClick={handleNext}
+            className={`text-4xl md:text-6xl ${canGoNext ? 'text-black' : 'text-gray-300'}`}
+            disabled={!canGoNext}
+          >
+            ▶
+          </button>
+        </div>
       </div>
 
-      <div className="max-w-3xl mx-auto space-y-6">
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-3xl mx-auto space-y-6 pb-8">
         {/* Happy Box */}
         <div className="relative">
           <div className="flex items-start justify-between mb-2">
@@ -929,6 +932,7 @@ function DetailScreen({ year, month, day, onBack, onDayChange, onYearMonthDayCha
             </button>
           </div>
         )}
+        </div>
       </div>
     </div>
   );
